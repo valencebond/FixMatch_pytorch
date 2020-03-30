@@ -53,7 +53,7 @@ To train the model on CIFAR10 with 40 labeled samples, you can run the script:
 ```
     $ CUDA_VISIBLE_DEVICES='0' python train.py --dataset CIFAR10 --n-labeled 40 
 ```
-To train the model on CIFAR100 with 40 labeled samples, you can run the script: 
+To train the model on CIFAR100 with 400 labeled samples, you can run the script: 
 ```
     $ CUDA_VISIBLE_DEVICES='0' python train.py --dataset CIFAR100 --n-labeled 400 
 ```
