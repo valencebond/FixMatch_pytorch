@@ -13,7 +13,7 @@ def setup_default_logging(args, default_level=logging.INFO,
     output_dir = os.path.join(args.dataset, f'x{args.n_labeled}')
     os.makedirs(output_dir, exist_ok=True)
 
-    writer = SummaryWriter(log_dir='runs', comment=f'{args.dataset}_{args.n_labeled}')
+    writer = SummaryWriter(comment=f'{args.dataset}_{args.n_labeled}')
 
     logger = logging.getLogger('train')
 

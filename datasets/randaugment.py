@@ -107,13 +107,14 @@ def color_func(img, factor):
 
 
 def contrast_func(img, factor):
-    '''
+    """
         same output as PIL.ImageEnhance.Contrast
-    '''
+    """
+    mean = np.sum(np.mean(img, axis=(0, 1)) * np.array([0.114, 0.587, 0.299]))
     table = np.array([(
-                              el - 74) * factor + 74
-                      for el in range(256)
-                      ]).clip(0, 255).astype(np.uint8)
+        el - mean) * factor + mean
+        for el in range(256)
+    ]).clip(0, 255).astype(np.uint8)
     out = table[img]
     return out
 
@@ -207,7 +208,6 @@ def cutout_func(img, pad_size, replace=(0, 0, 0)):
 def enhance_level_to_args(MAX_LEVEL):
     def level_to_args(level):
         return ((level / MAX_LEVEL) * 1.8 + 0.1,)
-
     return level_to_args
 
 
@@ -240,8 +240,7 @@ def cutout_level_to_args(cutout_const, MAX_LEVEL, replace_value):
 def solarize_level_to_args(MAX_LEVEL):
     def level_to_args(level):
         level = int((level / MAX_LEVEL) * 256)
-        return (level,)
-
+        return (level, )
     return level_to_args
 
 
@@ -252,8 +251,7 @@ def none_level_to_args(level):
 def posterize_level_to_args(MAX_LEVEL):
     def level_to_args(level):
         level = int((level / MAX_LEVEL) * 4)
-        return (level,)
-
+        return (level, )
     return level_to_args
 
 
@@ -317,8 +315,6 @@ class RandomAugment(object):
 
     def get_random_ops(self):
         sampled_ops = np.random.choice(list(func_dict.keys()), self.N)
-
-        sampled_ops = ['Rotate']
         return [(op, 0.5, self.M) for op in sampled_ops]
 
     def __call__(self, img):

@@ -1,8 +1,9 @@
 #!/usr/bin/python
 # -*- encoding: utf-8 -*-
+import math
 
 import torch
-from torch.optim.lr_scheduler import _LRScheduler
+from torch.optim.lr_scheduler import _LRScheduler, LambdaLR
 import numpy as np
 
 
@@ -134,12 +135,31 @@ class WarmupCosineLrScheduler(_LRScheduler):
         return ratio
 
 
+# from Fixmatch-pytorch
+def get_cosine_schedule_with_warmup(optimizer,
+                                    num_warmup_steps,
+                                    num_training_steps,
+                                    num_cycles=7./16.,
+                                    last_epoch=-1):
+    def _lr_lambda(current_step):
+        if current_step < num_warmup_steps:
+            return float(current_step) / float(max(1, num_warmup_steps))
+        no_progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
+        # return max(0., math.cos(math.pi * num_cycles * no_progress))
+
+        return max(0., (math.cos(math.pi * num_cycles * no_progress) + 1) * 0.5)
+
+    return LambdaLR(optimizer, _lr_lambda, last_epoch)
+
 if __name__ == "__main__":
     model = torch.nn.Conv2d(3, 16, 3, 1, 1)
     optim = torch.optim.SGD(model.parameters(), lr=1e-3)
 
     max_iter = 20000
-    lr_scheduler = WarmupCosineLrScheduler(optim, max_iter, 0, 0.1, 'linear', -1)
+    # lr_scheduler = WarmupCosineLrScheduler(optim, max_iter, 0)
+    lr_scheduler = get_cosine_schedule_with_warmup(
+        optim, 0, max_iter)
+
     lrs = []
     for _ in range(max_iter):
         lr = lr_scheduler.get_lr()[0]
@@ -152,6 +172,7 @@ if __name__ == "__main__":
     lrs = np.array(lrs)
     n_lrs = len(lrs)
     plt.plot(np.arange(n_lrs), lrs)
+    plt.title('3')
     plt.grid()
     plt.show()
 
