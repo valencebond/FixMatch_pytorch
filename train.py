@@ -18,7 +18,7 @@ from label_guessor import LabelGuessor
 from lr_scheduler import WarmupCosineLrScheduler
 from models.ema import EMA
 
-from utils import accuracy, setup_default_logging
+from utils import accuracy, setup_default_logging, interleave, de_interleave
 
 from utils import AverageMeter
 
@@ -61,6 +61,7 @@ def train_one_epoch(epoch,
     n_correct_u_lbs_meter = AverageMeter()
     # the number of gradient-considered strong augmentation (logits above threshold) of unlabeled samples
     n_strong_aug_meter = AverageMeter()
+    mask_meter = AverageMeter()
 
     epoch_start = time.time()  # start time
     dl_x, dl_u = iter(dltrain_x), iter(dltrain_u)
@@ -70,19 +71,42 @@ def train_one_epoch(epoch,
 
         lbs_x = lbs_x.cuda()
         lbs_u_real = lbs_u_real.cuda()
-        mask, lbs_u_guess = lb_guessor(model, ims_u_weak.cuda())
 
-        n_x = ims_x_weak.size(0)
+        # --------------------------------------
 
-        ims_x_u = torch.cat([ims_x_weak, ims_u_strong]).cuda()
+        bt = ims_x_weak.size(0)
+        mu = int(ims_u_weak.size(0) // bt)
+        imgs = torch.cat([ims_x_weak, ims_u_weak, ims_u_strong], dim=0).cuda()
+        imgs = interleave(imgs, 2 * mu + 1)
+        logits = model(imgs)
+        logits = de_interleave(logits, 2 * mu + 1)
 
-        logits_x_u = model(ims_x_u)
-        logits_x, logits_u = logits_x_u[:n_x], logits_x_u[n_x:]
+        logits_x = logits[:bt]
+        logits_u_w, logits_u_s = torch.split(logits[bt:], bt * mu)
+
         loss_x = criteria_x(logits_x, lbs_x)
-        loss_u = (criteria_u(logits_u, lbs_u_guess) * mask).mean()
-        loss = loss_x + lambda_u * loss_u
 
-        loss_u_real = (F.cross_entropy(logits_u, lbs_u_real) * mask).mean()
+        with torch.no_grad():
+            probs = torch.softmax(logits_u_w, dim=1)
+            scores, lbs_u_guess = torch.max(probs, dim=1)
+            mask = scores.ge(0.95).float()
+
+        loss_u = (criteria_u(logits_u_s, lbs_u_guess) * mask).mean()
+        loss = loss_x + lambda_u * loss_u
+        loss_u_real = (F.cross_entropy(logits_u_s, lbs_u_real) * mask).mean()
+
+        # --------------------------------------
+
+
+        # mask, lbs_u_guess = lb_guessor(model, ims_u_weak.cuda())
+        # n_x = ims_x_weak.size(0)
+        # ims_x_u = torch.cat([ims_x_weak, ims_u_strong]).cuda()
+        # logits_x_u = model(ims_x_u)
+        # logits_x, logits_u = logits_x_u[:n_x], logits_x_u[n_x:]
+        # loss_x = criteria_x(logits_x, lbs_x)
+        # loss_u = (criteria_u(logits_u, lbs_u_guess) * mask).mean()
+        # loss = loss_x + lambda_u * loss_u
+        # loss_u_real = (F.cross_entropy(logits_u, lbs_u_real) * mask).mean()
 
         optim.zero_grad()
         loss.backward()
@@ -94,6 +118,7 @@ def train_one_epoch(epoch,
         loss_x_meter.update(loss_x.item())
         loss_u_meter.update(loss_u.item())
         loss_u_real_meter.update(loss_u_real.item())
+        mask_meter.update(mask.mean().item())
 
         corr_u_lb = (lbs_u_guess == lbs_u_real).float() * mask
         n_correct_u_lbs_meter.update(corr_u_lb.sum().item())
@@ -106,14 +131,14 @@ def train_one_epoch(epoch,
             lr_log = sum(lr_log) / len(lr_log)
 
             logger.info("epoch:{}, iter: {}. loss: {:.4f}. loss_u: {:.4f}. loss_x: {:.4f}. loss_u_real: {:.4f}. "
-                        "n_correct_u: {:.2f}/{:.2f}. LR: {:.4f}. Time: {:.2f}".format(
+                        "n_correct_u: {:.2f}/{:.2f}. Mask:{:.4f} . LR: {:.4f}. Time: {:.2f}".format(
                 epoch, it + 1, loss_meter.avg, loss_u_meter.avg, loss_x_meter.avg, loss_u_real_meter.avg,
-                n_correct_u_lbs_meter.avg, n_strong_aug_meter.avg, lr_log, t))
+                n_correct_u_lbs_meter.avg, n_strong_aug_meter.avg, mask_meter.avg, lr_log, t))
 
             epoch_start = time.time()
 
     ema.update_buffer()
-    return loss_meter.avg, loss_x_meter.avg, loss_u_meter.avg, loss_u_real_meter.avg
+    return loss_meter.avg, loss_x_meter.avg, loss_u_meter.avg, loss_u_real_meter.avg, mask_meter.avg
 
 
 def evaluate(ema, dataloader, criterion):
@@ -150,11 +175,11 @@ def main():
                         help='width factor of wide resnet')
     parser.add_argument('--wresnet-n', default=28, type=int,
                         help='depth of wide resnet')
-    parser.add_argument('--dataset', type=str, default='CIFAR100',
+    parser.add_argument('--dataset', type=str, default='CIFAR10',
                         help='number of classes in dataset')
     # parser.add_argument('--n-classes', type=int, default=100,
     #                     help='number of classes in dataset')
-    parser.add_argument('--n-labeled', type=int, default=400,
+    parser.add_argument('--n-labeled', type=int, default=40,
                         help='number of labeled samples for training')
     parser.add_argument('--n-epoches', type=int, default=1024,
                         help='number of training epoches')
@@ -248,7 +273,7 @@ def main():
     best_epoch = 0
     logger.info('-----------start training--------------')
     for epoch in range(args.n_epoches):
-        train_loss, loss_x, loss_u, loss_u_real = train_one_epoch(epoch, **train_args)
+        train_loss, loss_x, loss_u, loss_u_real, mask_mean = train_one_epoch(epoch, **train_args)
         # torch.cuda.empty_cache()
 
         top1, top5, valid_loss = evaluate(ema, dlval, criteria_x)
@@ -257,6 +282,8 @@ def main():
                                             'test': valid_loss}, epoch)
         writer.add_scalar('train/2.train_loss_x', loss_x, epoch)
         writer.add_scalar('train/3.train_loss_u', loss_u, epoch)
+        writer.add_scalar('train/4.train_loss_u_real', loss_u_real, epoch)
+        writer.add_scalar('train/5.mask_mean', mask_mean, epoch)
         writer.add_scalars('test/1.test_acc', {'top1': top1, 'top5': top5}, epoch)
         # writer.add_scalar('test/2.test_loss', loss, epoch)
 

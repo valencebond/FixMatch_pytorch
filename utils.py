@@ -2,14 +2,24 @@ import datetime
 import logging
 import os
 import sys
+import torch
 
 # from torch.utils.tensorboard import SummaryWriter
 from tensorboardX import SummaryWriter
 
 
+def interleave(x, bt):
+    s = list(x.shape)
+    return torch.reshape(torch.transpose(x.reshape([-1, bt] + s[1:]), 1, 0), [-1] + s[1:])
+
+
+def de_interleave(x, bt):
+    s = list(x.shape)
+    return torch.reshape(torch.transpose(x.reshape([bt, -1] + s[1:]), 1, 0), [-1] + s[1:])
+
+
 def setup_default_logging(args, default_level=logging.INFO,
                           format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s"):
-
     output_dir = os.path.join(args.dataset, f'x{args.n_labeled}')
     os.makedirs(output_dir, exist_ok=True)
 
@@ -78,3 +88,11 @@ def time_str(fmt=None):
 
     #     time.strftime(format[, t])
     return datetime.datetime.today().strftime(fmt)
+
+
+if __name__ == '__main__':
+
+    a = torch.tensor(range(30))
+    a_ = interleave(a, 15)
+    a__ = de_interleave(a_, 15)
+    print(a, a_, a__)

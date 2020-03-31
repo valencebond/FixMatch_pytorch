@@ -20,7 +20,7 @@ The main difference is:
 
 2020-03-30_18:07:08.log : annotation decay and add  classifier.bias
 
-2020-03-30_18:07:08.log : 
+2020-03-31_09:51:38.log : add interleave and run model once
 
 ## Dependencies
 
@@ -61,6 +61,8 @@ To train the model on CIFAR100 with 400 labeled samples, you can run the script:
 
 ## Results
 
+在 CIFAR10 的训练过程中，loss 先下降再上升在下降。loss_x 一直下降，loss_u 先迅速上升平稳，再下降
+第一阶段下降是因为 loss_x 下降的幅度明显大于loss_u
 
 ### CIFAR10
 | #Labels | 40 | 250 | 4000 |
