@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import logging
 import os
 import sys
@@ -87,7 +87,7 @@ def time_str(fmt=None):
         fmt = '%Y-%m-%d_%H:%M:%S'
 
     #     time.strftime(format[, t])
-    return datetime.datetime.today().strftime(fmt)
+    return datetime.today().strftime(fmt)
 
 
 if __name__ == '__main__':

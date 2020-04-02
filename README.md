@@ -1,14 +1,9 @@
 
 ## FixMatch
 
-This unofficial reimplementation of [fixmatch](https://arxiv.org/abs/2001.07685) with RandomAugment. 
+The unofficial reimplementation of [fixmatch](https://arxiv.org/abs/2001.07685) with RandomAugment. 
 
 ## Overview
-This repo is based on https://github.com/CoinCheung/fixmatch.
-
-The main difference is:
-- the unsupervised loss implementation
-- without risk of OOM
 
 
 |repo|using EMA model to evaluate|using EMA model to train|update parameters|update buffer|
@@ -61,20 +56,20 @@ To train the model on CIFAR100 with 400 labeled samples, you can run the script:
 
 ## Results
 
-在 CIFAR10 的训练过程中，loss 先下降再上升在下降。loss_x 一直下降，loss_u 先迅速上升平稳，再下降
-第一阶段下降是因为 loss_x 下降的幅度明显大于loss_u
 
 ### CIFAR10
 | #Labels | 40 | 250 | 4000 |
 |:---|:---:|:---:|:---:|
 |Paper (RA) | 86.19 ± 3.37 | 94.93 ± 0.65 | 95.74 ± 0.05 |
-|ours| 89.63 | 93.0832 |94.7154|
+|ours| 89.63(85.65) | 93.0832 |94.7154|
 
 ### CIFAR100
+
+experiment is on running 
 | #Labels | 400 | 2500 | 10000 |
 |:---|:---:|:---:|:---:|
 |Paper (RA) | 51.15 ± 1.75 | 71.71 ± 0.11 | 77.40 ± 0.12 |
-|ours | 35.7683 | - | - |
+|ours | 53.74 | 67.3169 | 73.26 |
 
 
 ### References
