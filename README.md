@@ -65,7 +65,6 @@ To train the model on CIFAR100 with 400 labeled samples, you can run the script:
 
 ### CIFAR100
 
-experiment is on running 
 | #Labels | 400 | 2500 | 10000 |
 |:---|:---:|:---:|:---:|
 |Paper (RA) | 51.15 ± 1.75 | 71.71 ± 0.11 | 77.40 ± 0.12 |
