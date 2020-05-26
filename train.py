@@ -33,7 +33,7 @@ def set_model(args):
     model.train()
     model.to(device)
     criteria_x = nn.CrossEntropyLoss().to(device)
-    criteria_u = nn.CrossEntropyLoss(reduction='none').cuda()
+    criteria_u = nn.CrossEntropyLoss(reduction='none').to(device)
     return model, criteria_x, criteria_u
 
 
@@ -154,8 +154,8 @@ def evaluate(ema, dataloader, criterion):
     # matches = []
     with torch.no_grad():
         for ims, lbs in dataloader:
-            ims = ims.cuda()
-            lbs = lbs.cuda()
+            ims = ims.to(device)
+            lbs = lbs.to(device)
             logits = ema.model(ims)
             loss = criterion(logits, lbs)
             scores = torch.softmax(logits, dim=1)
