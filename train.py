@@ -21,7 +21,7 @@ from models.ema import EMA
 from utils import accuracy, setup_default_logging, interleave, de_interleave
 
 from utils import AverageMeter
-
+device = 'cuda' if torch.cuda.is_available() else 'cpu' 
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
@@ -31,8 +31,8 @@ def set_model(args):
                        k=args.wresnet_k, n=args.wresnet_n)  # wresnet-28-2
 
     model.train()
-    model.cuda()
-    criteria_x = nn.CrossEntropyLoss().cuda()
+    model.to(device)
+    criteria_x = nn.CrossEntropyLoss().to(device)
     criteria_u = nn.CrossEntropyLoss(reduction='none').cuda()
     return model, criteria_x, criteria_u
 
@@ -69,14 +69,14 @@ def train_one_epoch(epoch,
         ims_x_weak, ims_x_strong, lbs_x = next(dl_x)
         ims_u_weak, ims_u_strong, lbs_u_real = next(dl_u)
 
-        lbs_x = lbs_x.cuda()
-        lbs_u_real = lbs_u_real.cuda()
+        lbs_x = lbs_x.to(device)
+        lbs_u_real = lbs_u_real.to(device)
 
         # --------------------------------------
 
         bt = ims_x_weak.size(0)
         mu = int(ims_u_weak.size(0) // bt)
-        imgs = torch.cat([ims_x_weak, ims_u_weak, ims_u_strong], dim=0).cuda()
+        imgs = torch.cat([ims_x_weak, ims_u_weak, ims_u_strong], dim=0).to(device)
         imgs = interleave(imgs, 2 * mu + 1)
         logits = model(imgs)
         logits = de_interleave(logits, 2 * mu + 1)
@@ -145,7 +145,7 @@ def evaluate(ema, dataloader, criterion):
     # using EMA params to evaluate performance
     ema.apply_shadow()
     ema.model.eval()
-    ema.model.cuda()
+    ema.model.to(device)
 
     loss_meter = AverageMeter()
     top1_meter = AverageMeter()
