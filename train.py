@@ -7,6 +7,7 @@ import os
 import sys
 
 import numpy as np
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
@@ -22,6 +23,7 @@ from utils import accuracy, setup_default_logging, interleave, de_interleave
 
 from utils import AverageMeter
 device = 'cuda' if torch.cuda.is_available() else 'cpu' 
+print("Using device: {}".format(device))
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
@@ -65,7 +67,7 @@ def train_one_epoch(epoch,
 
     epoch_start = time.time()  # start time
     dl_x, dl_u = iter(dltrain_x), iter(dltrain_u)
-    for it in range(n_iters):
+    for it in tqdm(range(n_iters), desc='Epoch {}'.format(epoch)):
         ims_x_weak, ims_x_strong, lbs_x = next(dl_x)
         ims_u_weak, ims_u_strong, lbs_u_real = next(dl_u)
 
