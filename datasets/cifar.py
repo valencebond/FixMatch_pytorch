@@ -1,14 +1,34 @@
 import os.path as osp
 import pickle
 import numpy as np
+import os
 
 import torch
+import pandas as pd
 from torch.utils.data import Dataset
 from datasets import transform as T
+from torchvision import transforms
 
 from datasets.randaugment import RandomAugment
 from datasets.sampler import RandomSampler, BatchSampler
 
+class_to_idx = {
+    "chinee apple": 0,
+    "lantana": 1,
+    "parkinsonia": 2,
+    "parthenium": 3,
+    "prickly acacia": 4,
+    "rubber vine": 5,
+    "siam weed": 6,
+    "snake weed": 7,
+    "negative": 8,
+}
+
+def cleanup(files):
+    if ".DS_Store" in files:
+        files.remove(".DS_Store")
+
+    return files
 
 def load_data_train(L=250, dataset='CIFAR10', dspth='./data'):
     if dataset == 'CIFAR10':
@@ -126,7 +146,52 @@ def compute_mean_var():
     print('mean: ', mean)
     print('var: ', var)
 
+class CustomDataset(Dataset):
+    def __init__(self, im_folder, label_file):
+        self.im_folder = im_folder
+        self.labels_df = pd.read_csv(label_file)
+        self.total_imgs = cleanup(sorted(os.listdir(self.im_folder)))
+        self.labels = [
+            class_to_idx[label.lower()] for label in self.labels_df["Species"].to_list()
+        ]
 
+    def __len__(self):
+        return len(self.total_imgs)
+
+    def __getitem__(self, idx):
+        img_loc = os.path.join(self.im_folder, self.total_imgs[idx])
+        image = Image.open(img_loc).convert("RGB")
+        label = torch.as_tensor(self.labels[idx])
+        return image, label
+
+class DeepWeeds(CustomDataset):
+    def __init__(self, im_folder, label_file, is_train=True):
+        super(DeepWeeds, self).__init__(im_folder, label_file)
+        self.is_train = is_train
+        mean, std = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+
+        if is_train:
+            self.trans_weak = T.Compose([
+                T.Resize((224, 224)),
+                T.PadandRandomCrop(border=4, cropsize=(224, 224)),
+                T.RandomHorizontalFlip(p=0.5),
+                T.Normalize(mean, std),
+                T.ToTensor(),
+            ])
+            self.trans_strong = T.Compose([
+                T.Resize((224, 224)),
+                T.PadandRandomCrop(border=4, cropsize=(224, 224)),
+                T.RandomHorizontalFlip(p=0.5),
+                RandomAugment(2, 10),
+                T.Normalize(mean, std),
+                T.ToTensor(),
+            ])
+        else:
+            self.trans = T.Compose([
+                T.Resize((224, 224)),
+                T.Normalize(mean, std),
+                T.ToTensor(),
+            ])
 
 class Cifar(Dataset):
     def __init__(self, dataset, data, labels, is_train=True):
@@ -175,36 +240,63 @@ class Cifar(Dataset):
 
 
 def get_train_loader(dataset, batch_size, mu, n_iters_per_epoch, L, root='data'):
-    data_x, label_x, data_u, label_u = load_data_train(L=L, dataset=dataset, dspth=root)
+    if dataset.startswith("CIFAR"):
+        data_x, label_x, data_u, label_u = load_data_train(L=L, dataset=dataset, dspth=root)
 
-    ds_x = Cifar(
-        dataset=dataset,
-        data=data_x,
-        labels=label_x,
-        is_train=True
-    )  # return an iter of num_samples length (all indices of samples)
-    sampler_x = RandomSampler(ds_x, replacement=True, num_samples=n_iters_per_epoch * batch_size)
-    batch_sampler_x = BatchSampler(sampler_x, batch_size, drop_last=True)  # yield a batch of samples one time
-    dl_x = torch.utils.data.DataLoader(
-        ds_x,
-        batch_sampler=batch_sampler_x,
-        num_workers=2,
-        pin_memory=True
-    )
-    ds_u = Cifar(
-        dataset=dataset,
-        data=data_u,
-        labels=label_u,
-        is_train=True
-    )
-    sampler_u = RandomSampler(ds_u, replacement=True, num_samples=mu * n_iters_per_epoch * batch_size)
-    batch_sampler_u = BatchSampler(sampler_u, batch_size * mu, drop_last=True)
-    dl_u = torch.utils.data.DataLoader(
-        ds_u,
-        batch_sampler=batch_sampler_u,
-        num_workers=2,
-        pin_memory=True
-    )
+        ds_x = Cifar(
+            dataset=dataset,
+            data=data_x,
+            labels=label_x,
+            is_train=True
+        )  # return an iter of num_samples length (all indices of samples)
+        sampler_x = RandomSampler(ds_x, replacement=True, num_samples=n_iters_per_epoch * batch_size)
+        batch_sampler_x = BatchSampler(sampler_x, batch_size, drop_last=True)  # yield a batch of samples one time
+        dl_x = torch.utils.data.DataLoader(
+            ds_x,
+            batch_sampler=batch_sampler_x,
+            num_workers=2,
+            pin_memory=True
+        )
+        ds_u = Cifar(
+            dataset=dataset,
+            data=data_u,
+            labels=label_u,
+            is_train=True
+        )
+        sampler_u = RandomSampler(ds_u, replacement=True, num_samples=mu * n_iters_per_epoch * batch_size)
+        batch_sampler_u = BatchSampler(sampler_u, batch_size * mu, drop_last=True)
+        dl_u = torch.utils.data.DataLoader(
+            ds_u,
+            batch_sampler=batch_sampler_u,
+            num_workers=2,
+            pin_memory=True
+        )
+    else:
+        ds = DeepWeeds("/home/ubuntu/Home/data/blueriver/DeepWeeds/images", "/home/ubuntu/Home/data/blueriver/DeepWeeds/labels/labels.csv", is_train=True)
+        size = len(ds)
+        
+        ds_u, ds_x = torch.utils.data.random_split(ds, [round(size * 0.05), round(size * 0.95)])
+
+        sampler_x = RandomSampler(ds_x, replacement=True, num_samples=n_iters_per_epoch * batch_size)
+        batch_sampler_x = BatchSampler(sampler_x, batch_size, drop_last=True)
+
+        dl_x = torch.utils.data.DataLoader(
+            ds_x,
+            batch_sampler=batch_sampler_x,
+            num_workers=2,
+            pin_memory=True
+        )
+
+        sampler_u = RandomSampler(ds_u, replacement=True, num_samples=mu * n_iters_per_epoch * batch_size)
+        batch_sampler_u = BatchSampler(sampler_u, batch_size * mu, drop_last=True)
+
+        dl_u = torch.utils.data.DataLoader(
+            ds_u,
+            batch_sampler=batch_sampler_u,
+            num_workers=2,
+            pin_memory=True
+        )
+
     return dl_x, dl_u
 
 
