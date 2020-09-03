@@ -30,14 +30,14 @@ You can install them by ```pip install -r requirements.txt```.
 ## Dataset
 download cifar-10 dataset: 
 ```
-    $ mkdir -p dataset && cd data
+    $ mkdir -p data && cd data
     $ wget -c http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
     $ tar -xzvf cifar-10-python.tar.gz
 ```
 
 download cifar-100 dataset: 
 ```
-    $ mkdir -p dataset && cd data
+    $ mkdir -p data && cd data
     $ wget -c http://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz
     $ tar -xzvf cifar-100-python.tar.gz
 ```
